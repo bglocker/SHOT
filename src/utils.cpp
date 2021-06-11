@@ -36,6 +36,7 @@
 #include "vtkErrorCode.h"
 #include "vtkPoints.h"
 #include "vtkCellArray.h"
+#include "vtkCellArrayIterator.h"
 #include "vtkTransform.h"
 #include "vtkTransformFilter.h"
 #include "vtkCleanPolyData.h"
@@ -186,27 +187,44 @@ double computeMeshResolution(vtkPolyData* cloud)
 {
 	double meshResolution = 0;
 	int numdistances = 0;
-
-	vtkIdType* ptrCellIds = cloud->GetPolys()->GetPointer();
-	int nEdges;
-	int firstVer;
-	int secondVer;
 	double firstPoint[3], secondPoint[3];
-	for(int ce=0; ce<cloud->GetPolys()->GetNumberOfCells(); ce++)
+
+	//vtkIdType* ptrCellIds = cloud->GetPolys()->GetPointer();
+	//int nEdges;
+	//int firstVer;
+	//int secondVer;
+	//for(int ce=0; ce<cloud->GetPolys()->GetNumberOfCells(); ce++)
+	//{
+	//	nEdges = *ptrCellIds;
+	//	ptrCellIds++;
+	//	for(int ed=0; ed<nEdges; ed++)
+	//	{
+	//		firstVer = *(ptrCellIds+ed);
+	//		secondVer = *(ptrCellIds+((ed+1)%nEdges));
+	//		cloud->GetPoint(firstVer, firstPoint);
+	//		cloud->GetPoint(secondVer, secondPoint);
+	//		meshResolution += EuclideanDistance(firstPoint, secondPoint );
+	//		numdistances++;
+	//	}
+	//	ptrCellIds+=nEdges;
+	//}
+
+	auto iter = vtk::TakeSmartPointer(cloud->GetPolys()->NewIterator());
+	for (iter->GoToFirstCell(); !iter->IsDoneWithTraversal(); iter->GoToNextCell())
 	{
-		nEdges = *ptrCellIds;
-		ptrCellIds++;
-		for(int ed=0; ed<nEdges; ed++)
+		auto cell = iter->GetCurrentCell();
+		for (auto id = 0; id < cell->GetNumberOfIds(); id++)
 		{
-			firstVer = *(ptrCellIds+ed);
-			secondVer = *(ptrCellIds+((ed+1)%nEdges));
-			cloud->GetPoint(firstVer, firstPoint);
-			cloud->GetPoint(secondVer, secondPoint);
+			auto ve1 = cell->GetId(id);
+			auto ve2 = cell->GetId((id + 1) % cell->GetNumberOfIds());
+			cloud->GetPoint(ve1, firstPoint);
+			cloud->GetPoint(ve2, secondPoint);
 			meshResolution += EuclideanDistance(firstPoint, secondPoint );
 			numdistances++;
 		}
-		ptrCellIds+=nEdges;
 	}
+
+
 	if(numdistances!=0)
 	{
 		meshResolution/=numdistances;
@@ -288,28 +306,47 @@ int GetBoundaryPoints(vtkPolyData *polydata, bool* &boundaryPointsIds)
 	{
 		boundaryPointsIds[po] = false;
 	}
-	vtkIdType* ptrCells = polydata->GetPolys()->GetPointer();
-	int nVertex, ve1, ve2;
+		
 	vtkIdList* idList = vtkIdList::New();
 	polydata->BuildLinks();
-	//for every cell in polydata
-	for(int ce=0; ce<polydata->GetNumberOfPolys(); ce++)
+	
+	//vtkIdType* ptrCells = polydata->GetPolys()->GetPointer();
+	//int nVertex, ve1, ve2;
+	////for every cell in polydata
+	//for(int ce=0; ce<polydata->GetNumberOfPolys(); ce++)
+	//{
+	//	nVertex = *ptrCells;
+	//	ptrCells++;
+	//	//for every edge in polydata
+	//	for(int ve=0; ve<nVertex; ve++)
+	//	{
+	//		ve1 = *(ptrCells + ve);
+	//		ve2 = *(ptrCells + ((ve+1)%nVertex) );
+	//		polydata->GetCellEdgeNeighbors(ce, ve1, ve2,idList);
+	//		if(idList->GetNumberOfIds()<1)
+	//		{
+	//			boundaryPointsIds[ve1] = true;
+	//			boundaryPointsIds[ve2] = true;
+	//		}
+	//	}
+	//	ptrCells += nVertex;
+	//}
+	
+	auto iter = vtk::TakeSmartPointer(polydata->GetPolys()->NewIterator());
+	for (iter->GoToFirstCell(); !iter->IsDoneWithTraversal(); iter->GoToNextCell())
 	{
-		nVertex = *ptrCells;
-		ptrCells++;
-		//for every edge in polydata
-		for(int ve=0; ve<nVertex; ve++)
+		auto cell = iter->GetCurrentCell();
+		for (auto id = 0; id < cell->GetNumberOfIds(); id++)
 		{
-			ve1 = *(ptrCells + ve);
-			ve2 = *(ptrCells + ((ve+1)%nVertex) );
-			polydata->GetCellEdgeNeighbors(ce, ve1, ve2,idList);
+			auto ve1 = cell->GetId(id);
+			auto ve2 = cell->GetId((id+1)% cell->GetNumberOfIds());
+			polydata->GetCellEdgeNeighbors(iter->GetCurrentCellId(), ve1, ve2, idList);
 			if(idList->GetNumberOfIds()<1)
 			{
 				boundaryPointsIds[ve1] = true;
 				boundaryPointsIds[ve2] = true;
 			}
 		}
-		ptrCells += nVertex;
 	}
 	idList->Delete();
 	return polydata->GetNumberOfPoints();
